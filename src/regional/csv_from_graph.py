@@ -99,14 +99,8 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
         for i, (start, end) in enumerate(indices):
             segment = annotation_data[start:end]
             annot_from_eg[i] = mode(segment, keepdims=False)[0]
-        # print("Edges annotation computed!")
-
-        # annot_from_eg = np.array([
-        #     mode(graph.edge_geometry_property("annotation")[index[0]:index[1]]) for index in
-        #     graph.edge_property("edge_geometry_indices")
-        # ])
-        # graph.add_edge_property("annotation", annot_from_eg)
-        # print("Edges annotation computed!")
+        graph.add_edge_property("annotation", annot_from_eg)
+        print("Edges annotation computed!")
 
         # Pre-compute all properties 
         vertex_annotation = graph.vertex_property("annotation")
