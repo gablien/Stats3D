@@ -148,7 +148,7 @@ def save_projection(image, output_path, colormap, contrast):
         image,
         cmap=colormap, 
         vmin=contrast[0],
-        vmax= contrast[0]
+        vmax= contrast[1]
     )
 
 
