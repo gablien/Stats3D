@@ -17,7 +17,7 @@ from scipy.stats import mode
 try:
     import ClearMap.Settings as settings
 except:
-    sys.path.append(f"/data/buffer/louise.mathe/ClearMap/ClearMap")
+    sys.path.append(f"/home/{os.getlogin()}/programs/ClearMap/ClearMap2")
     import ClearMap.Settings as settings
 import ClearMap.Analysis.graphs.graph_gt as ggt
 from ClearMap.Analysis.vasculature.vasc_graph_utils import vertex_filter_to_edge_filter
@@ -238,7 +238,8 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
 
         # Convert all results to DataFrame and merge with sample data
         df = pd.DataFrame(sample_results)
-
+        # complete_df = df.merge(df_sample, on="sample_id")
+        
         # Write to CSV
         if not stats_file_path.exists():
             df.to_csv(stats_file_path, index=False)
