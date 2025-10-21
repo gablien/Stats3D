@@ -10,12 +10,15 @@ Compatible with ClearMap3 environment
 **Overview**
 This package provides two main analysis workflows:
 
-Spatial Analysis (tools for processing voxel maps and p-value maps)
+- Spatial Analysis (tools for processing voxel maps and p-value maps)
     Subregion extraction
     Effect size mapping
     Atlas superimposition
     Max intensity projection
 
-Regional Analysis
+- Regional Analysis
     Extract csv from vascular graph data with relevant info 
     Statistical visualization tools (bar plots, volcano plots)
+  
+- Vascular graph visualization
+    Uses pyvista library to plot vascular graphs, with custom colors
