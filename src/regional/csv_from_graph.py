@@ -17,9 +17,9 @@ from scipy.stats import mode
 try:
     import ClearMap.Settings as settings
 except:
-    sys.path.append(f"/home/{os.getlogin()}/programs/ClearMap/ClearMap2")
+    sys.path.append(f"/data/buffer/louise.mathe/ClearMap/ClearMap")
     import ClearMap.Settings as settings
-import ClearMap.Analysis.Graphs.GraphGt as ggt
+import ClearMap.Analysis.graphs.graph_gt as ggt
 from ClearMap.Analysis.vasculature.vasc_graph_utils import vertex_filter_to_edge_filter
 from ClearMap.Analysis.vasculature.vasc_graph_utils import vertex_to_edge_property
 
@@ -71,7 +71,7 @@ def get_eg_length(graph, coordinates_type, scaling=(1, 1, 1)):
     return lengths
 
 
-def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosity):
+def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosity = False):
     """
     Parameters
     ----------
@@ -238,11 +238,10 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
 
         # Convert all results to DataFrame and merge with sample data
         df = pd.DataFrame(sample_results)
-        complete_df = df.merge(df_sample, on="sample_id")
-        
+
         # Write to CSV
         if not stats_file_path.exists():
-            complete_df.to_csv(stats_file_path, index=False)
+            df.to_csv(stats_file_path, index=False)
         else:
-            complete_df.to_csv(stats_file_path, index=False, mode='a', header=False)
+            df.to_csv(stats_file_path, index=False, mode='a', header=False)
         print(f"Done writing graph stats in {stats_file_path}")
