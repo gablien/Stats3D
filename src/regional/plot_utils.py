@@ -13,7 +13,7 @@ from scipy.stats import ttest_ind
 try:
     import ClearMap.Settings as settings
 except:
-    sys.path.append(f"/home/{os.getlogin()}/programs/ClearMap/ClearMap2")
+    sys.path.append(f"/data/buffer/louise.mathe/ClearMap/ClearMap")
     import ClearMap.Settings as settings
 
 ontology_df = pd.read_json(Path(settings.atlas_folder) / 'ABA_annotation_last.jsonl', lines=True)
