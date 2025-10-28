@@ -173,3 +173,35 @@ def create_projected_map(folder, pattern, region, colormap, contrast):
                     save_projection(projection, out_path, colormap, contrast)
                     print(f"Saved projection: {out_path}")
 
+
+
+def create_thick_projection(folder, pattern, orientation, start_plane, end_plane, colormap, contrast):
+    '''
+    folder: str, the folder containing the tif maps
+    pattern: str, the pattern for selection of files to project. 
+    orientation: str, either 'coronal', 'sagittal' or 'horizontal' (works only if your tif image is in coronal orientation)
+    start_plane: int, first plane for the projection 
+    end_place: int, last plane to be considered
+    colormap: str, matplotlib colormap. We recommend PiYG for diverging maps.
+    contrast: list of int, contains the min and max of contrast range   
+    '''
+    for filename in os.listdir(folder):
+        if filename.endswith(".tif") and pattern in filename:
+            filepath = folder / filename
+            
+            print(f"Processing {filepath}")
+            volume = tifffile.imread(filepath)
+
+            if start_plane < 0 or end_plane >= volume.shape[0]:
+                raise ValueError(f"Plane indices must be between 0 and {volume.shape[0]-1}")
+            
+            sub_volume = volume[start_plane:end_plane+1, :, :]
+            projection = np.max(sub_volume, axis=0)
+
+            out_filename = f"{os.path.splitext(filename)[0]}_{orientation}_{start_plane}-to-{end_plane}.png"
+
+            output_folder = folder / 'projection'
+            os.makedirs(output_folder, exist_ok=True)
+            out_path = os.path.join(output_folder, out_filename)
+            save_projection(projection, out_path, colormap, contrast)
+            print(f"Saved projection: {out_path}")
