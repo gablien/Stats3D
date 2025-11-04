@@ -71,3 +71,48 @@ def vertex_filter_to_edge_filter(graph, vertex_filter, operator=np.logical_and):
     end_vertex_follows_filter = vertex_filter[connectivity[:, 1]]
     edge_filter = operator(start_vertex_follows_filter, end_vertex_follows_filter)
     return edge_filter
+
+
+def edge_filter_to_vertex_filter(graph,
+                                 edge_mask: np.ndarray,
+                                 require_all: bool = False) -> np.ndarray:
+    """
+    Convert an edge mask to a vertex mask, NumPy-style but readable.
+
+    Parameters
+    ----------
+    graph       : Graph-tool wrapper (needs .edge_connectivity(), .n_vertices)
+    edge_mask   : 1-D bool array, length == graph.n_edges
+    require_all : False → vertex is True if **any** incident edge is True
+                  True  → vertex is True only if **every** incident edge is True
+                           (isolated vertices always False)
+
+    Returns
+    -------
+    vertex_mask : 1-D bool array, length == graph.n_vertices
+    """
+    if edge_mask.dtype != bool:
+        raise ValueError("edge_mask must be boolean")
+
+    con = graph.edge_connectivity()      # shape (E, 2), dtype=int
+    n_vertices  = graph.n_vertices
+
+
+    if not require_all:    # ANY mode
+        v_mask = np.zeros(n_vertices, dtype=bool)
+        v_mask[con[edge_mask, 0]] = True   # vertices at edge start
+        v_mask[con[edge_mask, 1]] = True   # vertices at edge end
+        return v_mask
+    else: #  ALL mode
+        # total degree of every vertex
+        total_deg = np.zeros(n_vertices, dtype=np.int32)
+        np.add.at(total_deg, con[:, 0], 1)  # add 1 for the *start* vertex of every edge
+        np.add.at(total_deg, con[:, 1], 1)  # add 1 for the *end* vertex of every edge
+
+        # degree contributed by *True* edges
+        true_deg = np.zeros(n_vertices, dtype=np.int32)
+        np.add.at(true_deg, con[edge_mask, 0], 1)  # add 1 for start-vertices of True edges
+        np.add.at(true_deg, con[edge_mask, 1], 1)  # add 1 for end-vertices of True edges
+
+        # A vertex passes if it is not isolated *and* all its edges were True
+        return (total_deg > 0) & (true_deg == total_deg)
