@@ -17,7 +17,7 @@ from scipy.stats import mode
 try:
     import ClearMap.Settings as settings
 except:
-    sys.path.append(f"/home/{os.getlogin()}/programs/ClearMap/ClearMap2")
+    sys.path.append(f"/home/{os.getlogin()}/programs/ClearMap3")
     import ClearMap.Settings as settings
 import ClearMap.Analysis.graphs.graph_gt as ggt
 from ClearMap.Analysis.vasculature.vasc_graph_utils import vertex_filter_to_edge_filter

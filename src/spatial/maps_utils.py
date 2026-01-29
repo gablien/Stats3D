@@ -10,7 +10,7 @@ from ClearMap import Settings as settings
 import ClearMap.IO.IO as clearmap_io
 
 
-def create_effect_size_map(pval_path, control_path, test_path):
+def create_masked_effect_size_map(pval_path, control_path, test_path):
     """
     pval_path (Path object): path to p-value map
     control_path (Path object): path to control density map
@@ -28,7 +28,63 @@ def create_effect_size_map(pval_path, control_path, test_path):
 
     # save
     save_path = pval_path.with_stem(f"{pval_path.stem}_effect_size")
-    tifffile.imsave(save_path, diff_masked)
+    tifffile.imsave(save_path, diff_masked)    
+
+
+def create_effect_size_map(control_path, test_path, save_path):
+    """
+    pval_path (Path object): path to p-value map
+    control_path (Path object): path to control density map
+    test_path (Path object): path to pregnant density map
+    atlas_path (Path object): path to atlas
+    """
+    virgin = tifffile.imread(control_path)
+    pregnant = tifffile.imread(test_path)
+
+    # create effect size map, masked by significative p-values
+    diff = pregnant - virgin
+
+    # save
+    tifffile.imsave(save_path, diff)    
+
+
+def create_ratio_map(control_path, test_path, save_path):
+    """
+    pval_path (Path object): path to p-value map
+    control_path (Path object): path to control density map
+    test_path (Path object): path to pregnant density map
+    atlas_path (Path object): path to atlas
+    """
+    virgin = tifffile.imread(control_path)
+    pregnant = tifffile.imread(test_path)
+
+    # create effect size map, masked by significative p-values
+    ratio = pregnant / virgin
+
+    # save
+    tifffile.imsave(save_path, ratio)  
+
+
+def create_zscore_map(control_directory, test_directory, save_path):
+    control_files = list(Path(control_directory).glob('*.tif'))
+    test_files = list(Path(test_directory).glob('*.tif'))
+    control_maps = np.stack([tifffile.imread(f) for f in control_files], axis=0)
+    test_maps = np.stack([tifffile.imread(f) for f in test_files], axis=0)
+    print(f"Control shape: {control_maps.shape}, Test shape: {test_maps.shape}")
+
+    # Calculate voxel-wise mean and std for virgin group
+    control_mean = np.mean(control_maps, axis=0)
+    control_std = np.std(control_maps, axis=0, ddof=1)  # ddof=1 for sample std
+
+    # Avoid division by zero - set std to nan where it's 0
+    control_std[control_std == 0] = np.nan
+
+    # Calculate z-score for each test map
+    z_scores = (test_maps - control_mean) / control_std
+
+    # Mean z-score map across test group
+    mean_z_score_map = np.nanmean(z_scores, axis=0)
+    tifffile.imsave(save_path, mean_z_score_map.astype(np.float32)) 
 
 
 def extract_subregion_from_map(work_dir, region, ontology_df, custom_name=None):
