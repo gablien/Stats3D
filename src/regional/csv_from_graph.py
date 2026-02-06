@@ -22,74 +22,42 @@ except:
 import ClearMap.Analysis.graphs.graph_gt as ggt
 from ClearMap.Analysis.vasculature.vasc_graph_utils import vertex_filter_to_edge_filter
 from ClearMap.Analysis.vasculature.vasc_graph_utils import vertex_to_edge_property
+from ClearMap.Analysis.vasculature.vasc_graph_utils import parallel_get_vessels_lengths
 
 
-MIN_CHUNK_SIZE = 28
+MIN_CHUNK_SIZE = 5
 MAX_PROCS = 5
 MIN_DISTANCE_TO_SURFACE = 2 # minimal distance to surface for self loops
 MIN_LENGTH = 5 # minimal length for self loops
 
 
-def get_coordinate_chunks(graph, coordinates_type): 
-    """
-    Chunk edge_properties coordinates into a list (because number of voxels varies)
-    of arrays, 1 for each edge_geometry_indices (i.e. one for each edge)
-
-    Parameters
-    ----------
-    graph: GraphGt
-    coordinates_type: str
-
-    Returns
-    -------
-    List[np.ndarray]
-    """
-    coordinates = graph.edge_geometry_property(coordinates_type)
-    indices = graph.edge_property('edge_geometry_indices')
-    coordinates_chunks = [coordinates[ind[0]:ind[1]] for ind in indices]
-    return coordinates_chunks
-
-
-def get_lengths(coordinates, scaling = (1,1,1)):
-    scaling = np.array(scaling)
-    diff = np.diff(coordinates, axis=0) * scaling
-    lengths = np.linalg.norm(diff, axis=1)
-    return np.insert(lengths, 0, 0)
-
-
-def get_eg_length(graph, coordinates_type, scaling=(1, 1, 1)):
-    coordinates_chunks = get_coordinate_chunks(graph, coordinates_type)
-    try:  
-        chunk_size = int((len(coordinates_chunks) / MAX_PROCS) / 2)
-        chunk_size = max(MIN_CHUNK_SIZE, chunk_size)
-        with ProcessPoolExecutor(MAX_PROCS) as executor:
-            results = executor.map(get_lengths, coordinates_chunks, [scaling] * len(coordinates_chunks), chunksize=chunk_size)
-        results = list(results)
-        lengths = np.concatenate(results)
-    except BrokenProcessPool: 
-        lengths = np.array([get_lengths(chunk, scaling=scaling) for chunk in coordinates_chunks])
-    return lengths
-
-
-def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosity = False):
+def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosity = False, only_arteries=False):
     """
     Parameters
     ----------
-    data_folder: posixpath object
-        path of the folder containing data
+    graph_paths: dictionnary
+        keys = sample_ids, values = paths to graphs
     stats_file_path: posixpath object
         path of the csv file containing the results.
         If it does not exist, will be created.
     df_sample: posixpath object
         path to the csv matching sample id and experimental group
+    add_tortuosity: boolean:
+        If True, the tortuosity will be computed
     """
 
     for sample_id, graph_path in graph_paths.items():
         sample_results = []
         print(f"Computing graph stats from sample {sample_id} : {graph_path}")
         print(f"Loading graph from sample {sample_id}")
-        graph = ggt.load(str(graph_path))
+        initial_graph = ggt.load(str(graph_path))
         print("Graph loaded!")
+
+        if only_arteries:
+            artery_filter = initial_graph.edge_property('artery')==True
+            graph = initial_graph.sub_graph(edge_filter=artery_filter)
+        else: 
+            graph = initial_graph
 
         # Compute edge annotation
         print("Adding edges annotation")
@@ -102,6 +70,12 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
         graph.add_edge_property("annotation", annot_from_eg)
         print("Edges annotation computed!")
 
+        print("Adding edge length")
+        edge_lengths = parallel_get_vessels_lengths(graph, edge_coordinates_name='coordinates_atlas', clip_below_unity=True,
+                                 min_chunk_size=MIN_CHUNK_SIZE, n_processes=MAX_PROCS)
+        graph.add_edge_property(f"length_coordinates_atlas", edge_lengths)
+        print("Edges length computed!")
+
         # Pre-compute all properties 
         vertex_annotation = graph.vertex_property("annotation")
         edge_geometry_annotation = graph.edge_geometry_property("annotation")
@@ -109,17 +83,9 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
         vertex_degrees = graph.vertex_degrees()
         edge_connectivity = graph.edge_connectivity()
         vertex_coordinates_atlas = graph.vertex_property("coordinates_atlas")
-        edge_geometry_radii = graph.graph_property("edge_geometry_radii")
-        edge_length = graph.edge_property("length")
-        edge_distance_to_surface = graph.edge_property("distance_to_surface")
-
-        # Compute and add to edge_geometry property the lengths
-        print("Adding edge length")
-        for coord in [p for p in graph.edge_geometry_properties if "coordinates" in p]:
-            sca = (1.625, 1.625, 2.5) if coord == "coordinates" else (25, 25, 25)
-            egp_lengths = get_eg_length(graph, coord, scaling=sca)
-            graph.add_graph_property(f"edge_geometry_length_{coord}", egp_lengths)
-        print("Edges length computed!")
+        # edge_geometry_radii = graph.graph_property("edge_geometry_radii")
+        edge_radii = graph.edge_property("radii_atlas")
+        edge_length_coordinates_atlas = graph.edge_property("length_coordinates_atlas")
 
         # Compute tortuosity 
         if add_tortuosity:
@@ -164,18 +130,6 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
         region_ids = region_ids[region_ids != 0]
         hemispheres = np.unique(graph.vertex_property('hemisphere')) if has_hemisphere else [None]
 
-        # Get coordinate types for length calculations
-        coord_types = [p for p in graph.edge_geometry_properties if "coordinates" in p and "length" not in p]
-        
-        # Pre-compute all edge geometry length properties
-        edge_geometry_lengths = {}
-        for coord in coord_types:
-            edge_geometry_lengths[coord] = graph.graph_property(f"edge_geometry_length_{coord}")
-
-        # Pre-compute filters for all edges
-        length_filter = edge_length >= MIN_LENGTH
-        distance_filter = edge_distance_to_surface > MIN_DISTANCE_TO_SURFACE
-
         # Main loop
         for region_id in region_ids:
             for current_hemisphere in hemispheres:
@@ -204,7 +158,8 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
                     n_true_degree_1 = 'nan'
 
                 # Radius statistics
-                mean_radius = edge_geometry_radii[edge_geometry_filter].mean() if np.any(edge_geometry_filter) else 0
+                # mean_radius = edge_geometry_radii[edge_geometry_filter].mean() if np.any(edge_geometry_filter) else 0
+                mean_radius = edge_radii[edge_filter].mean() if np.any(edge_filter) else 0
 
                 # Tortuosity statistics
                 if add_tortuosity:
@@ -212,9 +167,7 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
                     mean_tortuosity = tortuosity[tortuosity_mask].mean() if np.any(tortuosity_mask) else 0
 
                 # Length calculations
-                length_results = {}
-                for coord in coord_types:
-                    length_results[f"length_{coord}"] = edge_geometry_lengths[coord][edge_geometry_filter].sum()
+                length_results = edge_length_coordinates_atlas[edge_filter].sum() if np.any(edge_filter) else 0
 
                 # Build result record
                 result_record = {
@@ -226,8 +179,8 @@ def compute_csv_from_graph(graph_paths, stats_file_path, df_sample, add_tortuosi
                     'n_true_degree_1': n_true_degree_1,
                     'n_degree_3': n_deg3,
                     'n_edges': n_edges,
-                    'mean_radius': mean_radius,
-                    **length_results
+                    'mean_radius_um': mean_radius * 25, # multiply by 25 to go from voxels (atlas space) to micrometers 
+                    'sum_length_atlas_um': length_results * 25
                 }
                 if add_tortuosity:
                     result_record['mean_tortuosity'] = mean_tortuosity

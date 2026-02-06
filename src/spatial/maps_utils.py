@@ -1,4 +1,5 @@
 import os
+import sys
 
 import cv2
 import matplotlib.pyplot as plt
@@ -6,8 +7,13 @@ import numpy as np
 from pathlib import Path
 import tifffile
 
-from ClearMap import Settings as settings
-import ClearMap.IO.IO as clearmap_io
+try:
+    from ClearMap import Settings as settings
+    import ClearMap.IO.IO as clearmap_io
+except: 
+    sys.path.append(f"/home/{os.getlogin()}/programs/ClearMap3")
+    from ClearMap import Settings as settings
+    import ClearMap.IO.IO as clearmap_io
 
 
 def create_masked_effect_size_map(pval_path, control_path, test_path):
